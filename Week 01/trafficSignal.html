@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>红绿灯</title>
+  <style>
+    @-webkit-keyframes twinkling {
+      0% {
+        opacity: 0;
+      }
+
+      100% {
+        opacity: 1;
+      }
+    }
+
+    .signal__wrapper {
+      width: 40px;
+      height: 200px;
+      padding: 20px;
+      background-color: #d9d9d9;
+    }
+
+    .signal {
+      margin-bottom: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: gray;
+    }
+
+    .active {
+      -webkit-animation: twinkling 1s infinite ease-in-out;
+    }
+
+    #counter {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      margin-bottom: 20px;
+      background-color: #ccc;
+      line-height: 40px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="signal__wrapper">
+    <div id="counter"></div>
+    <div class="signal"></div>
+    <div class="signal"></div>
+    <div class="signal"></div>
+  </div>
+  <button id="next">next</button>
+  <script>
+    const rules = [
+      { color: 'green', duration: 10000 },
+      { color: 'yellow', duration: 2000 },
+      { color: 'red', duration: 5000 },
+    ]
+
+    // 1、简单的setTimeout方法
+    function goBySetTimeOut(index = 0) {
+      const { color, duration } = rules[index]
+      const element = document.getElementsByClassName('signal')[index]
+      element.setAttribute('style', `background-color: ${color}`)
+      element.classList.add('active')
+      setTimeout(() => {
+        element.classList.remove('active')
+        element.setAttribute('style', 'background-color: gray')
+        const nextIndex = index === rules.length - 1 ? 0 : index + 1
+        goBySetTimeOut(nextIndex)
+      }, duration)
+    }
+
+    // 2、带倒计时功能的async/await
+    async function goByAsync(index = 0) {
+      active(index)
+      for await (let timeLeft of countDown(rules[index].duration)) {
+        document.getElementById('counter').innerText = timeLeft || ''
+      }
+      const nextIndex = index === rules.length - 1 ? 0 : index + 1
+      goByAsync(nextIndex)
+    }
+
+    // 3、手动控制的async/awit
+    async function goByHandle(index = 0) {
+      document.getElementById('counter').innerText = ''
+      await happen(document.getElementById('next'), 'click')
+      active(index)
+      const nextIndex = index === rules.length - 1 ? 0 : index + 1
+      goByHandle(nextIndex)
+    }
+
+    function active(index) {
+      const lastIndex = index === 0 ? rules.length - 1 : index - 1
+      // 重置上一个信号灯状态
+      const lastElement = document.getElementsByClassName('signal')[lastIndex]
+      lastElement.classList.remove('active')
+      lastElement.setAttribute('style', 'background-color: gray')
+      // 设置当前信号灯状态
+      const { color, duration } = rules[index]
+      const element = document.getElementsByClassName('signal')[index]
+      element.classList.add('active')
+      element.setAttribute('style', `background-color: ${color}`)
+    }
+
+    function happen(element, event) {
+      return new Promise((resolve, reject) => {
+        element.addEventListener(event, resolve, { once: true })
+      })
+    }
+
+    function sleep(duration) {
+      return new Promise((resolve, reject) => {
+        return setTimeout(() => { resolve() }, duration)
+      })
+    }
+
+    async function* countDown(duration) {
+      while (duration / 1000 > 0) {
+        await sleep(1000)
+        duration = duration - 1000
+        yield duration / 1000
+      }
+    }
+    // goBySetTimeOut()
+    // goByAsync()
+    // goByHandle()
+  </script>
+</body>
+
+</html>
