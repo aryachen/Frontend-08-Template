@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TicTacToe-AI</title>
+  <style>
+    .point {
+      box-sizing: border-box;
+      float: left;
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      line-height: 40px;
+      text-align: center;
+      border: 1px solid black;
+    }
+  </style>
+</head>
+
+<body>
+  <div>
+    <span>棋盘规格：</span>
+    <input type="radio" name="scale" value=3 onclick="init(3)" />3*3
+    <input type="radio" name="scale" value=5 onclick="init(5)" />5*5
+  </div>
+  <div id="board"></div>
+  <script>
+    let scale = 3
+    let pattern = null
+    let pointDict = null
+    let activeKey = ''
+    init(3)
+
+    function init(newScale) {
+      scale = newScale
+      pattern = Array(scale * scale).fill(0)
+      const roleAKey = (scale - 1) / 2
+      const roleBKey = roleAKey + 1
+      pointDict = {
+        [roleAKey]: '⭕️',
+        [roleBKey]: '❌',
+        0: ''
+      }
+      activeKey = roleAKey
+      const board = document.getElementById('board')
+      board.innerHTML = ''
+      board.setAttribute('style', `width: ${scale * 40}px;`)
+      document.querySelector(`input[value="${scale}"]`).setAttribute('checked', true)
+      render(pattern)
+    }
+
+    function userMove(e, pointIndex) {
+      const currentKey = activeKey
+      if (e.target.textContent) {
+        return false
+      }
+      pattern[pointIndex] = currentKey
+      e.target.textContent = pointDict[currentKey]
+      activeKey = scale - currentKey
+      if (check(currentKey, pattern)) {
+        alert(`${pointDict[currentKey]} 赢了 !`)
+        return
+      }
+      setTimeout(() => {
+        computerMove()
+      }, 200)
+    }
+
+    function computerMove() {
+      const { result, pointIndex } = bestChoice(pattern, activeKey)
+      console.warn('bestChoice', { result, pointIndex })
+      if (result === 0 && pointIndex === -1) {
+        alert('和棋！')
+        return
+      }
+      pattern[pointIndex] = activeKey
+      if (check(activeKey, pattern)) {
+        alert(`${pointDict[activeKey]} 赢了 !`)
+      }
+      document.getElementsByClassName('point')[pointIndex].textContent = pointDict[activeKey]
+      activeKey = scale - activeKey
+    }
+
+    function bestChoice(pattern, activeKey, deep = 0) {
+      deep++
+      let result = -2
+      pointIndex = -1
+      pattern.some((pointKey, index) => {
+        // 跳过已落子的点
+        if (pointKey > 0) {
+          return false
+        }
+        let tmpPattern = [...pattern]
+        tmpPattern[index] = activeKey
+        if (check(activeKey, tmpPattern)) {
+          result = 1
+          pointIndex = index
+          return true
+        }
+        if (scale > 3 && deep > 4) {
+          result = -1
+          pointIndex = index
+          return true
+        }
+        const choice = bestChoice(tmpPattern, scale - activeKey, deep)
+        if (-(choice.result) > result) {
+          result = -(choice.result)
+          pointIndex = result >= 0 ? index : choice.pointIndex
+        }
+        return false
+      })
+      return {
+        result: result === -2 ? 0 : result,
+        pointIndex
+      }
+    }
+
+    function check(currentKey, pattern) {
+      let row = false
+      let unMatchLine = 0
+      let col = {}
+      let cross1 = -(scale + 1)    // 存放交叉线上一个连续点的index
+      let cross2 = 0     // 存放交叉线上一个连续点的index
+      const colStep = scale
+      const cross1Step = scale + 1
+      const cross2Step = scale - 1
+      let unMatchCross1 = false
+      let unMatchCross2 = false
+      let willWin = false
+      for (let i = 0; i < pattern.length; i++) {
+        if (unMatchLine === scale * 2 && unMatchCross1 && unMatchCross2) {
+          break
+        }
+        const pointKey = pattern[i]
+        const pointMatch = pointKey === currentKey
+        const mod = i % scale
+        // 判断行是否成线
+        if (row || mod === 0) {
+          row = pointMatch
+          if (!row) {
+            unMatchLine++
+          } else {
+            if (mod === scale - 1) {
+              // return true
+              willWin = true
+              break
+            }
+          }
+        }
+
+        if (!pointMatch) {
+          continue
+        }
+        // 判断列是否成线（index%scale的值相同）
+        if (!col[mod] || !col[mod].unMatch) {
+          const isColStart = i - mod === 0
+          const step = col[mod] ? i - col[mod].lastIndex : isColStart ? colStep : -1
+          if (step !== colStep) {
+            col[mod] = { unMatch: true }
+            unMatchLine++
+          } else {
+            col[mod] = { lastIndex: i, unMatch: false }
+            if (i === scale * (scale - 1) + mod) {
+              willWin = true
+              break
+            }
+          }
+
+        }
+
+        // 判断左上->右下交叉线是否成线（交叉线上相邻的点index差值为scale+1）
+        if (!unMatchCross1) {
+          const step = i - cross1
+          if (step > cross1Step) {
+            unMatchCross1 = true
+          } else {
+            cross1 = step === cross1Step ? i : cross1
+            if ((scale * scale - 1) === cross1) {
+              // return true
+              willWin = true
+              break
+            }
+          }
+
+        }
+
+        // 判断右上->左下交叉线是否成线（交叉线上相邻的点index差值为scale-1）
+        if (!unMatchCross2) {
+          const step = i - cross2
+          if (step > cross2Step) {
+            unMatchCross2 = true
+          } else {
+            cross2 = step === cross2Step ? i : cross2
+            if (scale * (scale - 1) === cross2) {
+              // return true
+              willWin = true
+              break
+            }
+          }
+
+        }
+      }
+      return willWin
+    }
+
+    function render(pattern) {
+      let board = document.getElementById('board')
+
+      pattern.forEach((pointKey, pointIndex) => {
+        let point = document.createElement('div')
+        point.setAttribute('class', 'point')
+        point.textContent = pointDict[pointKey]
+        point.addEventListener('click', (e) => { userMove(e, pointIndex) })
+        board.appendChild(point)
+      })
+    }
+
+  </script>
+</body>
+
+</html>
