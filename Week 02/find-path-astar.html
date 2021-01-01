@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地图编辑器最优寻路</title>
+  <style>
+    #map {
+      width: 900px;
+      display: flex;
+      flex-wrap: wrap;
+      margin-right: 10px;
+    }
+
+    .cell {
+      box-sizing: border-box;
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      font-size: 5px;
+      border: 1px solid gray;
+    }
+
+    .wrapper {
+      display: flex;
+      align-items: start;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrapper">
+    <div id="map"></div>
+    <button id="save">保存</button>
+  </div>
+  <script>
+    class Sorted {
+      constructor(data, compare) {
+        this.data = data
+        this.compare = compare || ((a, b) => { a - b })
+      }
+
+      get() {
+        const length = this.data.length
+        if (!length) return
+        let min = this.data[0]
+        let minIndex = 0
+
+        for (let i = 0; i < length; i++) {
+          if (this.compare(this.data[i], min) < 0) {
+            min = this.data[i]
+            minIndex = i
+          }
+        }
+        this.data[minIndex] = this.data[length - 1]
+        this.data.pop()
+        return min
+      }
+
+      set(value) {
+        this.data.push(value)
+      }
+    }
+
+    const total = 10000
+    const scale = Math.sqrt(total)
+    const map = JSON.parse(localStorage.getItem('map')) || Array(total).fill(0)
+    const container = document.getElementById('map')
+    for (let y = 0; y < scale; y++) {
+      for (let x = 0; x < scale; x++) {
+        const index = y * scale + x
+        const cell = document.createElement('span')
+        cell.classList.add('cell')
+        cell.style.backgroundColor = map[index] === 1 ? 'black' : ''
+
+        cell.addEventListener('mouseover', () => {
+          if (clear) {
+            map[index] = 0
+            cell.style.backgroundColor = ''
+          }
+          if (paint) {
+            map[index] = 1
+            cell.style.backgroundColor = 'black'
+          }
+        })
+
+        container.appendChild(cell)
+      }
+    }
+    let paint = false
+    let clear = false
+    container.addEventListener('mousedown', (e) => {
+      clear = e.which === 3
+      paint = !clear
+      container.addEventListener('mouseup', () => { paint = false; clear = false })
+    })
+    container.addEventListener('contextmenu', (e) => { e.preventDefault() })
+    document.getElementById('save').addEventListener('click', () => { localStorage.setItem('map', JSON.stringify(map)) })
+
+    function sleep(duration) {
+      return new Promise(resolve => {
+        setTimeout(() => resolve(), duration)
+      })
+    }
+
+    async function findPath(map, start, end) {
+      const distance = function (point) {
+        return (point[0] - end[0]) ** 2 + (point[1] - end[1]) ** 2
+      }
+
+      let sortedQueue = new Sorted([start], (a, b) => distance(a) - distance(b))
+
+      const insert = async function (x, y, source) {
+        // 遇到墙或者已有状态的点，跳过
+        if (x < 0 || x >= 100 || y < 0 || y >= 100) {
+          return false
+        }
+        const index = y * scale + x
+        if (!map[index]) {
+          map[index] = source
+          document.getElementsByClassName('cell')[index].style.backgroundColor = 'green'
+          sortedQueue.set([x, y])
+        }
+        // await sleep(10)
+      }
+
+      while (sortedQueue.data.length > 0) {
+        let [x, y] = sortedQueue.get()
+        if (x === end[0] && y === end[1]) {
+          let path = []
+          while (x !== start[0] || y !== start[1]) {
+            [x, y] = map[y * scale + x]
+            path.push([x, y])
+            document.getElementsByClassName('cell')[y * scale + x].style.backgroundColor = 'red'
+          }
+          return path
+        }
+        await insert(x - 1, y, [x, y])
+        await insert(x + 1, y, [x, y])
+        await insert(x, y - 1, [x, y])
+        await insert(x, y + 1, [x, y])
+      }
+      return false
+
+    }
+
+  </script>
+</body>
+
+</html>
