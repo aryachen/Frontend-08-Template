@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LL算法构建AST-四则运算</title>
+</head>
+<body>
+  <script>
+    function* tokenize(source) {
+      const pattern = /(?<Number>[0-9\.]+)|(?<WhiteSpace>[ \t]+)|(?<LineTerminator>[\r\n]+)|(?<Addition>\+)|(?<Subtraction>\-)|(?<Multiplication>\*)|(?<Division>\/)/g
+      let result = null
+      let nextIndex = 0
+      while (true) {
+        result = pattern.exec(source)
+        if (!result) break
+        if (nextIndex !== result.index) {
+          throw(new Error('存在无法识别的字符'))
+        }
+
+        const type = Object.keys(result.groups).find(i => result.groups[i])
+        const value = result.groups[type]
+        nextIndex += value.length
+        yield {type, value}
+      }
+      yield {
+        type: 'EOF'
+      }
+    }
+
+    function Expression(source) {
+      const {type: firstType} = source[0] || {}
+      const {type:secondType} = source[1] || {}
+      if (firstType && firstType === 'AdditiveExpression' && secondType && secondType === 'EOF') {
+        const node = {
+          type: 'Expression',
+          children: [source.shift(), source.shift()]
+        }
+        source.unshift(node)
+        return node
+      }
+      AdditiveExpression(source)
+      return Expression(source)
+    }
+
+    function AdditiveExpression(source) {
+      const {type: firstType} = source[0] || {}
+      if (firstType && firstType === 'MultiplicativeExpression') {
+        const node = {
+          type: 'AdditiveExpression',
+          children: [source[0]]
+        }
+        source[0] = node
+        return AdditiveExpression(source)
+      }
+      const {type:secondType} = source[1] || {}
+      if (firstType && firstType === 'AdditiveExpression' && secondType && ['Addition', 'Subtraction'].includes(secondType)) {
+        const node = {
+          type: 'AdditiveExpression',
+          operator: secondType === 'Addition' ? '+' : '-',
+          children: [source.shift(), source.shift()]
+        }
+        MultiplicativeExpression(source)
+        node.children.push(source.shift())
+        source.unshift(node)
+        return AdditiveExpression(source)
+      }
+      if (firstType && firstType === 'AdditiveExpression') {
+        return source[0]
+      }
+      MultiplicativeExpression(source)
+      return AdditiveExpression(source)
+    }
+
+    function MultiplicativeExpression(source) {
+      const {type: firstType} = source[0] || {}
+      if (firstType && firstType === 'Number') {
+        const node = {
+          type: 'MultiplicativeExpression',
+          children: [source[0]]
+        }
+        source[0] = node
+        return MultiplicativeExpression(source)
+      }
+      const {type:secondType} = source[1] || {}
+      if (firstType && firstType === 'MultiplicativeExpression' && secondType && ['Multiplication', 'Division'].includes(secondType)) {
+        const node = {
+          type: 'MultiplicativeExpression',
+          operator: secondType === 'Multiplication' ? '*' : '/',
+          children: [source.shift(), source.shift(), source.shift()],
+        }
+        source.unshift(node)
+        return MultiplicativeExpression(source)
+      }
+      if (firstType && firstType === 'MultiplicativeExpression') {
+        return source[0]
+      }
+      return MultiplicativeExpression(source)
+    } 
+
+    function run() {
+      const source = []
+      const str = '10 + 12 / 9 * 22 - 3'
+      // const str = '10 + abc12 / 9 * 22 - 3'
+      for (let token of tokenize(str)) {
+        if (!['WhiteSpace', 'LineTerminator'].includes(token.type)) {
+          source.push(token)
+        }
+      }
+      console.warn('source', source)
+      console.warn('Expression', Expression(source))
+    }
+
+    run()
+  </script>
+</body>
+</html>
