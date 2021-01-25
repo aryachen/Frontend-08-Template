@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>proxy的基本用法</title>
+</head>
+<body>
+  <input id="r" type="range" min=0 max=255/>
+  <input id="g" type="range" min=0 max=255/>
+  <input id="b" type="range" min=0 max=255/>
+  <div id="color" style="width: 100px;height: 100px"></div>
+  <script>
+    let callbacks = new Map()
+    let reactivities = new Map()
+    let usedReactivities = []
+
+    function effect(callback) {
+      // callbacks.push(callback)
+      usedReactivities = []
+      callback()
+      console.log('usedReactivities', usedReactivities)
+      for (let reactivity of usedReactivities) {
+        const [obj, prop] = reactivity || []
+        if (!callbacks.has(obj)) {
+          callbacks.set(obj, new Map())
+        }
+        if (!callbacks.get(obj).has(prop)) {
+          callbacks.get(obj).set(prop, [])
+        }
+        callbacks.get(obj).get(prop).push(callback)
+      }
+
+    }
+
+    function reactive(object) {
+      if (reactivities.has(object)) {
+        return reactivities.get(object)
+      }
+      let proxy = new Proxy(object, {
+        set(obj, prop, value) {
+          obj[prop] = value
+          if (callbacks.get(obj) && callbacks.get(obj).get(prop)) {
+            for (let callback of callbacks.get(obj).get(prop)) {
+              callback()
+            }
+          }
+          console.warn('set obj, prop, value', obj, prop, value)
+          return obj[prop]
+        },
+        get(obj, prop) {
+          console.warn('get', obj, prop)
+          usedReactivities.push([obj, prop])
+          if (typeof obj[prop] === 'object') {
+            return reactive(obj[prop])
+          }
+          return obj[prop]
+        }
+      })
+      reactivities.set(object, proxy)
+      return proxy
+    }
+
+    // let object = {a: {b: 11}, b: 2}
+    let object = {r: 1, g: 1, b: 1}
+    let bo = reactive(object)
+    // effect(() => {console.warn('effect', bo.a.b)})
+    effect(() => {
+      document.getElementById('r').value = bo.r
+    })
+    effect(() => {
+      document.getElementById('g').value = bo.g
+    })
+    effect(() => {
+      document.getElementById('b').value = bo.b
+    })
+
+    document.getElementById('r').addEventListener('input', e => bo.r = e.target.value)
+    document.getElementById('g').addEventListener('input', e => bo.g = e.target.value)
+    document.getElementById('b').addEventListener('input', e => bo.b = e.target.value)
+
+    effect(() => {
+      document.getElementById('color').style.backgroundColor = `rgb(${bo.r}, ${bo.g}, ${bo.b})`
+    })
+  </script>
+</body>
+</html>
